@@ -3,20 +3,113 @@ import {
   Moon, Zap, Coffee, Ghost, Search, Menu, ChevronRight,
   Share2, Bookmark, Clock, Flame, ArrowDown, Eye, MessageSquare
 } from 'lucide-react';
+import { supabase } from './lib/supabaseClient';
 
 const App = () => {
   const [scrolled, setScrolled] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  // Data State
+  const [featuredPost, setFeaturedPost] = useState(null);
+  const [midnightSnacks, setMidnightSnacks] = useState([]);
+  const [onlineUsers, setOnlineUsers] = useState(3421); // Default/Fallback
+  const [loading, setLoading] = useState(true);
+
+  // Initial Hardcoded Data (Fallback)
+  const fallbackFeatured = {
+    title: "The Architecture of Abandoned Digital Worlds",
+    excerpt: "We spent 48 hours exploring the servers of a forgotten 1999 MMO. What we found wasn't just data—it was a ghost town of digital memories and the structural debris of a lost society.",
+    category: "The Rabbit Hole",
+    time: "18 min read",
+    author: "Elena Void",
+    image: "https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&q=80&w=1200",
+    slug: '#'
+  };
+
+  const fallbackSnacks = [
+    { title: "The 'Dark Forest' theory of the internet is finally here", time: "2 min", cat: "Culture" },
+    { title: "Is 'Antigravity' by Google the next evolution in UI development?", time: "4 min", cat: "Tech" },
+    { title: "Why your brain loves lo-fi beats at 2AM", time: "2 min", cat: "Brain Fog" },
+    { title: "The 2004 lost media trend that just resurfaced", time: "5 min", cat: "Mystery" }
+  ];
+
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     window.addEventListener('scroll', handleScroll);
+
+    fetchContent();
+    subscribeToRealtime();
+
     return () => {
       window.removeEventListener('scroll', handleScroll);
       clearInterval(timer);
+      supabase.removeAllChannels();
     };
   }, []);
+
+  const fetchContent = async () => {
+    try {
+      setLoading(true);
+      // Fetch Featured Post (The Rabbit Hole)
+      const { data: featuredData, error: featuredError } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('category', 'The Rabbit Hole')
+        .limit(1)
+        .single();
+
+      if (featuredData) {
+        setFeaturedPost({
+          ...featuredData,
+          time: featuredData.reading_time || '10 min',
+          image: featuredData.image_url
+        });
+      } else {
+        setFeaturedPost(fallbackFeatured);
+      }
+
+      // Fetch Recent Posts for Midnight Snacks (excluding the featured one if possible, simplified here)
+      const { data: snackData, error: snackError } = await supabase
+        .from('posts')
+        .select('*')
+        .neq('category', 'The Rabbit Hole') // varied content
+        .limit(4);
+
+      if (snackData && snackData.length > 0) {
+        setMidnightSnacks(snackData.map(p => ({
+          title: p.title,
+          time: p.reading_time || '5 min',
+          cat: p.category || 'General'
+        })));
+      } else {
+        setMidnightSnacks(fallbackSnacks);
+      }
+
+    } catch (err) {
+      console.warn("Supabase fetch failed (likely no keys), using fallback.", err);
+      // Fallback in case of code error or connection failure
+      setFeaturedPost(fallbackFeatured);
+      setMidnightSnacks(fallbackSnacks);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const subscribeToRealtime = () => {
+    // Simple channel subscription to listen for ANY database changes (just to show activity)
+    // In a real app with Auth, we would use Presence for user counts.
+    // Here we'll just simulate "live" updates if the DB changes.
+    const channel = supabase.channel('public:posts')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, (payload) => {
+        // Refresh content on change
+        fetchContent();
+        // Simulate a user count bump on activity
+        setOnlineUsers(prev => prev + Math.floor(Math.random() * 5) + 1);
+      })
+      .subscribe();
+  };
+
 
   const formatTime = (date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -29,20 +122,15 @@ const App = () => {
     { name: 'Brain Fog', icon: <Moon size={16} />, color: 'text-indigo-400', bg: 'bg-indigo-400/10' },
   ];
 
-  const featuredRabbitHole = {
-    title: "The Architecture of Abandoned Digital Worlds",
-    excerpt: "We spent 48 hours exploring the servers of a forgotten 1999 MMO. What we found wasn't just data—it was a ghost town of digital memories and the structural debris of a lost society.",
-    category: "The Rabbit Hole",
-    time: "18 min read",
-    author: "Elena Void",
-    image: "https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&q=80&w=1200"
-  };
+  // Use state or fallback
+  const heroPost = featuredPost || fallbackFeatured;
+  const snacks = midnightSnacks.length > 0 ? midnightSnacks : fallbackSnacks;
 
   return (
     <div className="min-h-screen bg-[#050505] text-slate-200 font-sans selection:bg-purple-500/30 selection:text-purple-200 overflow-x-hidden">
       {/* Top Banner / System Clock */}
       <div className="fixed top-0 w-full z-[60] bg-purple-950/40 backdrop-blur-md border-b border-purple-500/10 h-[34px] flex items-center justify-center px-6 text-[10px] font-mono tracking-widest text-purple-400 uppercase">
-        System Status: Online • Local Time: {formatTime(currentTime)} • 3,421 Others are Scrolling
+        System Status: Online • Local Time: {formatTime(currentTime)} • {onlineUsers.toLocaleString()} Others are Scrolling
       </div>
 
       {/* Navigation */}
@@ -83,7 +171,7 @@ const App = () => {
           <div className="relative group rounded-[2.5rem] overflow-hidden bg-black border border-white/5 min-h-[500px] flex items-center">
             <div className="absolute inset-0 z-0">
               <img
-                src={featuredRabbitHole.image}
+                src={heroPost.image}
                 className="w-full h-full object-cover opacity-40 grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-[2000ms] ease-out"
                 alt="Digital ruins"
               />
@@ -94,19 +182,19 @@ const App = () => {
             <div className="relative z-10 p-8 md:p-16 max-w-3xl">
               <div className="flex flex-wrap items-center gap-4 mb-6">
                 <span className="px-4 py-1 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-400 text-[10px] font-black uppercase tracking-[0.2em]">
-                  {featuredRabbitHole.category}
+                  {heroPost.category}
                 </span>
                 <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
-                  <Clock size={12} /> {featuredRabbitHole.time}
+                  <Clock size={12} /> {heroPost.time}
                 </span>
               </div>
 
               <h2 className="text-4xl md:text-7xl font-black mb-6 leading-[1] text-white tracking-tighter">
-                {featuredRabbitHole.title}
+                {heroPost.title}
               </h2>
 
               <p className="text-slate-300 text-lg md:text-xl mb-10 leading-relaxed font-light italic">
-                "{featuredRabbitHole.excerpt}"
+                "{heroPost.excerpt}"
               </p>
 
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-8">
@@ -149,12 +237,7 @@ const App = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { title: "The 'Dark Forest' theory of the internet is finally here", time: "2 min", cat: "Culture" },
-              { title: "Is 'Antigravity' by Google the next evolution in UI development?", time: "4 min", cat: "Tech" },
-              { title: "Why your brain loves lo-fi beats at 2AM", time: "2 min", cat: "Brain Fog" },
-              { title: "The 2004 lost media trend that just resurfaced", time: "5 min", cat: "Mystery" }
-            ].map((snack, i) => (
+            {snacks.map((snack, i) => (
               <div key={i} className="group relative bg-[#0D0D0D] border border-white/5 p-8 rounded-[2rem] hover:border-purple-500/50 hover:bg-[#121212] transition-all cursor-pointer">
                 <div className="absolute top-6 right-8 text-white/5 group-hover:text-purple-500/10 text-5xl font-black transition-colors">0{i + 1}</div>
                 <div className="text-[10px] font-black text-purple-500/80 uppercase tracking-widest mb-4">{snack.cat} • {snack.time}</div>
