@@ -4,8 +4,13 @@ import {
   Share2, Bookmark, Clock, Flame, ArrowDown, Eye, MessageSquare
 } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import Login from './pages/Login';
+import AdminDashboard from './pages/AdminDashboard';
+import ProtectedRoute from './components/ProtectedRoute';
 
-const App = () => {
+// Home Component (Original App Content)
+const Home = () => {
   const [scrolled, setScrolled] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -79,6 +84,7 @@ const App = () => {
         .from('posts')
         .select('*')
         .neq('category', 'The Rabbit Hole') // varied content
+        .order('created_at', { ascending: false })
         .limit(4);
 
       if (snackData && snackData.length > 0) {
@@ -104,8 +110,6 @@ const App = () => {
   const subscribeToRealtime = () => {
     if (!supabase) return;
     // Simple channel subscription to listen for ANY database changes (just to show activity)
-    // In a real app with Auth, we would use Presence for user counts.
-    // Here we'll just simulate "live" updates if the DB changes.
     const channel = supabase.channel('public:posts')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, (payload) => {
         // Refresh content on change
@@ -164,7 +168,7 @@ const App = () => {
             <button className="p-2 text-slate-400 hover:text-white transition-colors lg:hidden">
               <Menu size={20} />
             </button>
-            <button className="hidden sm:block px-6 py-2 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-black tracking-tighter uppercase hover:shadow-[0_0_20px_rgba(147,51,234,0.3)] transition-all active:scale-95">
+            <button onClick={() => window.location.href = '/login'} className="hidden sm:block px-6 py-2 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-black tracking-tighter uppercase hover:shadow-[0_0_20px_rgba(147,51,234,0.3)] transition-all active:scale-95">
               Join the Club
             </button>
           </div>
@@ -359,6 +363,20 @@ const App = () => {
         </div>
       </footer>
     </div>
+  );
+};
+
+const App = () => {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/admin" element={<AdminDashboard />} />
+        </Route>
+      </Routes>
+    </Router>
   );
 };
 
