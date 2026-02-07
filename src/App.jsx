@@ -38,17 +38,22 @@ const App = () => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     window.addEventListener('scroll', handleScroll);
 
-    fetchContent();
-    subscribeToRealtime();
+    if (supabase) {
+      fetchContent();
+      subscribeToRealtime();
+    } else {
+      setLoading(false);
+    }
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
       clearInterval(timer);
-      supabase.removeAllChannels();
+      if (supabase) supabase.removeAllChannels();
     };
   }, []);
 
   const fetchContent = async () => {
+    if (!supabase) return;
     try {
       setLoading(true);
       // Fetch Featured Post (The Rabbit Hole)
@@ -97,6 +102,7 @@ const App = () => {
   };
 
   const subscribeToRealtime = () => {
+    if (!supabase) return;
     // Simple channel subscription to listen for ANY database changes (just to show activity)
     // In a real app with Auth, we would use Presence for user counts.
     // Here we'll just simulate "live" updates if the DB changes.

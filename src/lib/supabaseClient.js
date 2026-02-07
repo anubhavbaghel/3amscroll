@@ -3,8 +3,15 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('Supabase URL and Anon Key are missing! Check your .env file.')
+let supabaseInstance = null;
+if (supabaseUrl && supabaseAnonKey) {
+    try {
+        supabaseInstance = createClient(supabaseUrl, supabaseAnonKey)
+    } catch (e) {
+        console.error('Supabase client failed to initialize:', e)
+    }
+} else {
+    console.warn('Supabase URL or Anon Key missing. App will run in fallback mode.')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = supabaseInstance;
